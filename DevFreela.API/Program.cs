@@ -1,5 +1,6 @@
 using DevFreela.API.ExceptionHandler;
 using DevFreela.Application;
+using DevFreela.Infrastructure;
 using DevFreela.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,11 +19,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Foi alterado para injetar a dependência direto nas camadas
 #endregion
 
-//builder.Services.AddDbContext<DevFreelaDbContext>(o => o.UseInMemoryDatabase("DevFreelaDb"));
-var connectionString = builder.Configuration.GetConnectionString("DevFreelaCS");
-builder.Services.AddDbContext<DevFreelaDbContext>(o => o.UseSqlServer(connectionString));
-
-builder.Services.AddApplication();
+builder.Services.AddApplication()
+    .AddInfrastructure(builder.Configuration);
 
 #region Exception Handler
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
