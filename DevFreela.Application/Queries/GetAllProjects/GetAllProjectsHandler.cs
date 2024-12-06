@@ -20,5 +20,6 @@ namespace DevFreela.Application.Queries.GetAllProjects
 
             return ResultViewModel<List<ProjectItemViewModel>>.Success(model);
         }
+
     }
 }
