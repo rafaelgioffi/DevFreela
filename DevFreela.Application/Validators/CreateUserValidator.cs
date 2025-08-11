@@ -8,14 +8,14 @@ using System.Threading.Tasks;
 
 namespace DevFreela.Application.Validators
 {
-    public class CreateUserValidator  :AbstractValidator<CreateUserInputModel>
+    public class CreateUserValidator : AbstractValidator<CreateUserInputModel>
     {
         public CreateUserValidator() 
-        {
+        {            
             RuleFor(u => u.FullName)
                 .NotEmpty()
-                .Must(u => u.Split(" ").Length > 0).WithMessage("Favor informar o nome completo. {ComparisonValue}");
-
+                .Must(u => u.Split(" ").Length > 1).WithMessage("Favor informar o nome completo.");
+            
             RuleFor(u => u.Email)
                     .EmailAddress().WithMessage("E-mail deve possuir um formato válido. endereço@provedor.domínio. Ex.: pessoa@email.com.br");
 
