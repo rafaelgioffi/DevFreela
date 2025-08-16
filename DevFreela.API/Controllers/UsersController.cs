@@ -1,10 +1,12 @@
 ﻿using DevFreela.Application.Models;
 using DevFreela.Core.Entities;
 using DevFreela.Infrastructure.Auth;
+using DevFreela.Infrastructure.Notifications;
 using DevFreela.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace DevFreela.API.Controllers
 {
@@ -15,10 +17,19 @@ namespace DevFreela.API.Controllers
     {
         private readonly DevFreelaDbContext _dbContext;
         private readonly IAuthService _authService;
-        public UsersController(DevFreelaDbContext dbContext, IAuthService authservice)
+        private readonly IMemoryCache _cache;
+        private readonly IEmailService _emailService;
+
+        public UsersController(
+            DevFreelaDbContext dbContext, 
+            IAuthService authservice,
+            IMemoryCache cache,
+            IEmailService emailService)
         {
             _dbContext = dbContext;
             _authService = authservice;
+            _cache = cache;
+            _emailService = emailService;
         }
 
         // GET api/users
@@ -109,5 +120,68 @@ namespace DevFreela.API.Controllers
 
             return Ok(result);
         }
+
+        [HttpPost("password-recovery/request")]
+        public async Task<IActionResult> RequestPasswordRecovery(PasswordRecoveryRequestInputModel model)
+        {
+            var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Email == model.Email);
+            if (user is null)
+            {
+                return BadRequest();
+            }
+
+            var code = new Random().Next(100000, 999999).ToString();
+
+            var cacheKey = $"RecoveryCode:{model.Email}";
+            _cache.Set(cacheKey, code, TimeSpan.FromMinutes(10));
+
+            await _emailService.SendAsync(
+                user.Email,
+                "Código de Recuperação",
+                $"Seu código de recuperação é: {code}");
+
+            return NoContent();
+        }
+
+        [HttpPost("password-recovery/validate")]
+        public IActionResult ValidateRecoveryCode(ValidadateRecoveryCodeInputModel model)
+        {
+            var cacheKey = $"RecoveryCode:{model.Email}";
+
+            if (!_cache.TryGetValue(cacheKey, out string? code) || code != model.Code)
+            {
+                return BadRequest();
+            }
+
+            return NoContent();
+        }
+
+        [HttpPost("password-recovery/change")]
+        public async Task<IActionResult> ChangePassword(ChangePasswordInputModel model)
+        {
+            var cacheKey = $"RecoveryCode:{model.Email}";
+
+            if (!_cache.TryGetValue(cacheKey, out string? code) || code != model.Code)
+            {
+                return BadRequest();
+            }
+
+            _cache.Remove(cacheKey);
+
+            var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Email == model.Email);
+            
+            if (user is null)
+            {
+                return BadRequest();
+            }
+
+            var hash = _authService.ComputeHash(model.NewPassword);
+
+            user.UpdatePassword(hash);
+            await _dbContext.SaveChangesAsync();
+
+            return NoContent();
+        }
+
     }
 }
